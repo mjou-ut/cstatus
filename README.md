@@ -8,7 +8,8 @@ Renders a Claude Code status line from the JSON object emitted by the
 **1. Build and install the binary**
 
 ```sh
-brew install cjson   # one-time
+xcode-select --install   # installs cc – skip if already installed
+brew install cjson       # JSON parsing library
 make
 cp cstatus ~/.claude/cstatus
 ```
@@ -44,8 +45,14 @@ cat full-json-schema.json | ~/.claude/cstatus
 
 ## Build
 
+**Prerequisites**
+
 ```sh
-brew install cjson   # macOS – one-time
+xcode-select --install   # installs cc (Apple Clang) – one-time, macOS only
+brew install cjson       # JSON parsing library – one-time
+```
+
+```sh
 make
 ```
 
