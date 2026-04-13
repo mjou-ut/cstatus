@@ -1,0 +1,23 @@
+# statusline.template – cstatus format template
+# Lines starting with '#' are ignored. Each other line becomes one output line.
+#
+# Syntax:  $field_name        plain value
+#          $field_name,COLOR  value wrapped in that color
+#
+# Fields:  $current_dir  $project_dir  $git_worktree  $model_name  $model_id
+#          $session_id   $session_name  $version       $vim_mode    $agent
+#          $worktree     $branch        $cost          $duration    $lines_added
+#          $lines_removed  $context_pct  $context_remaining  $rate_5h  $rate_7d
+#
+# Colors:  RESET  BOLD  DIM  CYAN  GREEN  YELLOW  RED  MAGENTA  BLUE  WHITE
+#
+# -- Examples (uncomment to try) ----------------------------------------
+# $vim_mode,BLUE  $model_name,CYAN  $current_dir,WHITE  $branch,GREEN  $agent,MAGENTA
+# Directory: $current_dir,CYAN | Branch: $branch,GREEN <$worktree,DIM>
+# Model: $model_id,CYAN  Session: $session_name
+# Cost: $cost,YELLOW  +$lines_added,GREEN / -$lines_removed,RED
+# $context_bar,GREEN  $cost,YELLOW  $duration,DIM
+# -----------------------------------------------------------------------
+
+$model_name,CYAN  $current_dir,WHITE  $branch,GREEN  $agent,MAGENTA
+$context_bar,GREEN  $cost,YELLOW  $duration,DIM
