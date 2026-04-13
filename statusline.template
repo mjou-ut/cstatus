@@ -19,5 +19,6 @@
 # $context_bar,GREEN  $cost,YELLOW  $duration,DIM
 # -----------------------------------------------------------------------
 
-$model_name,CYAN  $current_dir,WHITE  $branch,GREEN  $agent,MAGENTA
-$context_bar,GREEN  $cost,YELLOW  $duration,DIM
+At: $current_dir,WHITE | $model_name,CYAN | $branch,GREEN  $agent,MAGENTA
+Ctx: $context_bar,GREEN  $cost,YELLOW  $duration,DIM
+Lines: $lines_added,GREEN / $lines_removed,RED 
