@@ -3,6 +3,45 @@
 Renders a Claude Code status line from the JSON object emitted by the
 `statusline` hook.
 
+## Setup
+
+**1. Build and install the binary**
+
+```sh
+brew install cjson   # one-time
+make
+cp cstatus ~/.claude/cstatus
+```
+
+**2. Install the template**
+
+```sh
+cp statusline.template ~/.claude/statusline.template
+```
+
+Edit `~/.claude/statusline.template` to customise your layout (see [Template](#template) below).
+
+**3. Wire it up in `~/.claude/settings.json`**
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/cstatus"
+  }
+}
+```
+
+The status line refreshes after each assistant message. Changes to the template take effect on the next refresh with no restart needed.
+
+**Test it manually**
+
+```sh
+cat full-json-schema.json | ~/.claude/cstatus
+```
+
+---
+
 ## Build
 
 ```sh
