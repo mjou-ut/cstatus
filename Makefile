@@ -1,7 +1,7 @@
 CC      = cc
-CFLAGS  = -O2 -std=c99
+CFLAGS  = -O2 -std=c99 -I.
 TARGET  = cstatus
-SRC     = cstatus.c
+SRC     = cstatus.c random-metric.c
 
 # Locate cJSON via pkg-config, then Homebrew, then bare -lcjson
 CJSON_CFLAGS := $(shell pkg-config --cflags cjson 2>/dev/null)
@@ -21,7 +21,7 @@ endif
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ $< $(CJSON_LIBS)
+	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ $^ $(CJSON_LIBS)
 
 clean:
 	rm -f $(TARGET)

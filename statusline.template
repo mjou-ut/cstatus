@@ -6,8 +6,11 @@
 #
 # Fields:  $current_dir  $project_dir  $git_worktree  $model_name  $model_id
 #          $session_id   $session_name  $version       $vim_mode    $agent
-#          $worktree     $branch        $cost          $duration    $lines_added
+#          $worktree     $worktree_path  $worktree_orig_cwd  $worktree_orig_branch
+#          $branch        $cost          $duration    $lines_added
 #          $lines_removed  $context_pct  $context_remaining  $rate_5h  $rate_7d
+#          $random        $repo_host  $repo_owner  $repo_name
+#          $effort_level  $thinking_enabled  $exceeds_200k
 #
 # Colors:  RESET  BOLD  DIM  CYAN  GREEN  YELLOW  RED  MAGENTA  BLUE  WHITE
 #
@@ -22,3 +25,4 @@
 At: $current_dir,WHITE | $model_name,CYAN | $branch,GREEN  ($agent,MAGENTA)
 Ctx: $context_bar,GREEN  $cost,YELLOW  $duration,DIM
 Lines: $lines_added,GREEN / $lines_removed,RED
+Random: $random | $random | $random

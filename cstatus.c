@@ -13,6 +13,10 @@
 #include <ctype.h>
 #include <time.h>
 #include <cjson/cJSON.h>
+#include "random-metric.h"
+
+/* ── forward declarations ─────────────────────────────────── */
+static cJSON *jnav(cJSON *root, const char *path);
 
 /* ── ANSI ─────────────────────────────────────────────────── */
 #define RESET    "\033[0m"
@@ -25,6 +29,9 @@
 #define MAGENTA  "\033[35m"
 #define BLUE     "\033[34m"
 #define WHITE    "\033[97m"
+
+/* ── random output generator ──────────────────────────────── *\n * Generates a random string for the $random field.            *\n * Uses a simple LCG random number generator.                  */
+static unsigned int seed = 0;
 
 /* ── read one complete JSON object from stdin ─────────────── */
 static char *read_object(void)
@@ -127,7 +134,7 @@ static const char *lookup_color(const char *name)
 /* ── template: field resolution ───────────────────────────── *
  * Fills buf with a display-ready string for the named field.  *
  * Returns 1 if the field has a value, 0 if absent/empty.      */
-static int resolve_field(cJSON *json, const char *name, char *buf, size_t blen)
+static int resolve_field(cJSON *json, const char *name, const char *arg, char *buf, size_t blen)
 {
     buf[0] = '\0';
     double v = 0;
@@ -180,6 +187,26 @@ static int resolve_field(cJSON *json, const char *name, char *buf, size_t blen)
         strncpy(buf, "⚠️", blen - 1);
         buf[blen - 1] = '\0';
         return 1;
+    }
+    if (!strcmp(name, "random")) {
+        /* $random[metric] - generate random value for a specific metric */
+        if (arg[0]) {
+            char *result = random_metric_generate(json, arg);
+            if (result) {
+                strncpy(buf, result, blen - 1);
+                buf[blen - 1] = '\0';
+                return 1;
+            }
+            return 0;
+        }
+        /* $random without args - pick a random metric from the pool */
+        char *result = random_metric_random(json);
+        if (result) {
+            strncpy(buf, result, blen - 1);
+            buf[blen - 1] = '\0';
+            return 1;
+        }
+        return 0;
     }
     if (!strcmp(name, "api_duration")) {
         if (!jnum(json, "cost.total_api_duration_ms", &v) || v <= 0) return 0;
@@ -309,6 +336,20 @@ static void render_template_line(const char *fmt, cJSON *json)
         char fname[64] = "";
         if (flen < sizeof fname) { memcpy(fname, fs, flen); fname[flen] = '\0'; }
 
+        /* optional [arg] for fields like $random[metric] */
+        char arg[256] = "";
+        const char *arg_start = NULL;
+        if (*p == '[') {
+            const char *ae = p + 1;
+            while (*ae && *ae != ']') ae++;
+            size_t alen = (size_t)(ae - p - 1);
+            if (alen > 0 && alen < sizeof arg) {
+                memcpy(arg, p + 1, alen);
+                arg[alen] = '\0';
+                p = ae + 1; /* skip past ] */
+            }
+        }
+
         /* optional ,COLOR immediately after the field name */
         const char *color = NULL;
         const char *after = p;
@@ -325,7 +366,7 @@ static void render_template_line(const char *fmt, cJSON *json)
         }
 
         char val[512];
-        if (resolve_field(json, fname, val, sizeof val) && val[0]) {
+        if (resolve_field(json, fname, arg, val, sizeof val) && val[0]) {
             if (color) printf("%s%s" RESET, color, val);
             else       fputs(val, stdout);
         }
@@ -482,6 +523,7 @@ static void print_help(void)
     puts("  $effort_level          effort.level  (low/medium/high/xhigh)");
     puts("  $thinking_enabled      thinking.enabled  (🧠 or empty)");
     puts("  $exceeds_200k          exceeds_200k_tokens  (⚠️ or empty)");
+    puts("  $random                random emoji + phrase (rotates each call)");
     puts("\nAvailable colors:");
     printf("  " RESET   "RESET"   RESET "\n");
     printf("  " BOLD    "BOLD"    RESET "\n");
@@ -527,9 +569,11 @@ int main(int argc, char **argv)
         free(text);
         if (!json) { fputs("cstatus: invalid JSON\n", stderr); continue; }
 
-        if (use_template)
+        if (use_template) {
+            random_metric_reset();
             for (int i = 0; i < tmpl.count; i++)
                 render_template_line(tmpl.lines[i], json);
+        }
         else
             render(json);
 
