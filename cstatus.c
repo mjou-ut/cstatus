@@ -26,6 +26,38 @@
 #define BLUE     "\033[34m"
 #define WHITE    "\033[97m"
 
+/* ── random output generator ──────────────────────────────── *\n * Generates a random string for the $random field.            *\n * Uses a simple LCG random number generator.                  */
+static unsigned int seed = 0;
+
+static char *random_output(void)
+{
+    static const char *emojis[] = {
+        "🚀", "✨", "🔥", "💡", "⚡", "🎯", "🎉", "🌟", "💪", "🎨",
+        "📊", "🔍", "🛠️", "✅", "❌", "⏰", "📝", "💻", "🌈", "🎵",
+        "🦄", "🍕", "☕", "🌙", "☀️", "🌊", "🍀", "🎲", "🏆", "📚",
+    };
+    static const char *phrases[] = {
+        "Working...", "Analyzing", "Building", "Testing", "Deploying",
+        "Optimizing", "Refactoring", "Reviewing", "Coding", "Debugging",
+        "Compiling", "Running", "Scanning", "Parsing", "Formatting",
+        "Checking", "Verifying", "Loading", "Processing", "Fetching",
+    };
+
+    /* Seed once with current time on first call */
+    if (seed == 0) {
+        seed = (unsigned int)time(NULL);
+    }
+
+    seed = seed * 1103515245 + 12345;
+    int emoji_idx = (seed / 65536) % 30;
+    seed = seed * 1103515245 + 12345;
+    int phrase_idx = (seed / 65536) % 20;
+
+    static char buf[256];
+    snprintf(buf, sizeof buf, "%s %s", emojis[emoji_idx], phrases[phrase_idx]);
+    return buf;
+}
+
 /* ── read one complete JSON object from stdin ─────────────── */
 static char *read_object(void)
 {
@@ -178,6 +210,11 @@ static int resolve_field(cJSON *json, const char *name, char *buf, size_t blen)
         cJSON *node = jnav(json, "exceeds_200k_tokens");
         if (!node || !cJSON_IsTrue(node)) return 0;
         strncpy(buf, "⚠️", blen - 1);
+        buf[blen - 1] = '\0';
+        return 1;
+    }
+    if (!strcmp(name, "random")) {
+        strncpy(buf, random_output(), blen - 1);
         buf[blen - 1] = '\0';
         return 1;
     }
@@ -482,6 +519,7 @@ static void print_help(void)
     puts("  $effort_level          effort.level  (low/medium/high/xhigh)");
     puts("  $thinking_enabled      thinking.enabled  (🧠 or empty)");
     puts("  $exceeds_200k          exceeds_200k_tokens  (⚠️ or empty)");
+    puts("  $random                random emoji + phrase (rotates each call)");
     puts("\nAvailable colors:");
     printf("  " RESET   "RESET"   RESET "\n");
     printf("  " BOLD    "BOLD"    RESET "\n");
