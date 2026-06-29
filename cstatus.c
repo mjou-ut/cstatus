@@ -47,6 +47,81 @@ static double random_double(void)
     return (double)(seed / 65536) / 65536.0; /* 0.0 to 1.0 */
 }
 
+/* Available metrics that $random can pick from */
+static const char *random_metrics[] = {
+    "exceeds_200k_tokens",
+    "context_window.remaining_percentage",
+    "context_window.used_percentage",
+    "cost.total_cost_usd",
+    "cost.total_duration_ms",
+    "cost.total_api_duration_ms",
+    "cost.total_lines_added",
+    "cost.total_lines_removed",
+    "context_window.total_input_tokens",
+    "context_window.total_output_tokens",
+    "context_window.context_window_size",
+    "rate_limits.five_hour.used_percentage",
+    "rate_limits.seven_day.used_percentage",
+    "rate_limits.five_hour.resets_at",
+    "rate_limits.seven_day.resets_at",
+    NULL
+};
+
+/* Track which metrics have been used in current render */
+#define MAX_USED_METRICS 32
+static char used_metrics[MAX_USED_METRICS][128];
+static int used_count = 0;
+
+static int is_metric_used(const char *metric)
+{
+    for (int i = 0; i < used_count; i++) {
+        if (!strcmp(used_metrics[i], metric)) return 1;
+    }
+    return 0;
+}
+
+static void mark_metric_used(const char *metric)
+{
+    if (used_count < MAX_USED_METRICS) {
+        strncpy(used_metrics[used_count], metric, 127);
+        used_metrics[used_count][127] = '\0';
+        used_count++;
+    }
+}
+
+static const char *get_random_metric(void)
+{
+    /* Count available metrics */
+    int count = 0;
+    for (int i = 0; random_metrics[i]; i++) count++;
+
+    /* Find available metrics (not yet used) */
+    int available[MAX_USED_METRICS];
+    int avail_count = 0;
+    for (int i = 0; i < count; i++) {
+        if (!is_metric_used(random_metrics[i])) {
+            available[avail_count++] = i;
+        }
+    }
+
+    /* If all metrics used, reset and pick again */
+    if (avail_count == 0) {
+        used_count = 0;
+        for (int i = 0; i < MAX_USED_METRICS; i++) used_metrics[i][0] = '\0';
+        for (int i = 0; i < count; i++) {
+            if (!is_metric_used(random_metrics[i])) {
+                available[avail_count++] = i;
+            }
+        }
+    }
+
+    /* Pick random available metric */
+    int idx = available[(int)(random_double() * avail_count)];
+    const char *metric = random_metrics[idx];
+    mark_metric_used(metric);
+    return metric;
+}
+
 static char *random_metric(cJSON *json, const char *metric) {
     static char buf[256];
     buf[0] = '\0';
@@ -278,7 +353,7 @@ static int resolve_field(cJSON *json, const char *name, const char *arg, char *b
         return 1;
     }
     if (!strcmp(name, "random")) {
-        /* $random[metric] - generate random value for a metric */
+        /* $random[metric] - generate random value for a specific metric */
         if (arg[0]) {
             char *result = random_metric(json, arg);
             if (result) {
@@ -288,10 +363,17 @@ static int resolve_field(cJSON *json, const char *name, const char *arg, char *b
             }
             return 0;
         }
-        /* $random with no args - simple random indicator */
-        strncpy(buf, random_double() > 0.5 ? "🔄" : "✨", blen - 1);
-        buf[blen - 1] = '\0';
-        return 1;
+        /* $random without args - pick a random metric from the pool */
+        const char *metric = get_random_metric();
+        if (metric) {
+            char *result = random_metric(json, metric);
+            if (result) {
+                strncpy(buf, result, blen - 1);
+                buf[blen - 1] = '\0';
+                return 1;
+            }
+        }
+        return 0;
     }
     if (!strcmp(name, "api_duration")) {
         if (!jnum(json, "cost.total_api_duration_ms", &v) || v <= 0) return 0;
