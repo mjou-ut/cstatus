@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 #include <cjson/cJSON.h>
 
 /* ── ANSI ─────────────────────────────────────────────────── */
@@ -155,6 +156,78 @@ static int resolve_field(cJSON *json, const char *name, char *buf, size_t blen)
     if (!strcmp(name, "branch")) {
         if (!jstr(json, "worktree.branch", buf, blen))
             jstr(json, "workspace.git_worktree", buf, blen);
+        return buf[0] != '\0';
+    }
+    if (!strcmp(name, "worktree_path")) return jstr(json, "worktree.path",          buf, blen);
+    if (!strcmp(name, "worktree_orig_cwd")) return jstr(json, "worktree.original_cwd", buf, blen);
+    if (!strcmp(name, "worktree_orig_branch")) return jstr(json, "worktree.original_branch", buf, blen);
+    if (!strcmp(name, "transcript_path")) return jstr(json, "transcript_path",      buf, blen);
+    if (!strcmp(name, "repo_host"))     return jstr(json, "workspace.repo.host",   buf, blen);
+    if (!strcmp(name, "repo_owner"))    return jstr(json, "workspace.repo.owner",  buf, blen);
+    if (!strcmp(name, "repo_name"))     return jstr(json, "workspace.repo.name",   buf, blen);
+    if (!strcmp(name, "output_style"))  return jstr(json, "output_style.name",     buf, blen);
+    if (!strcmp(name, "effort_level"))  return jstr(json, "effort.level",          buf, blen);
+    if (!strcmp(name, "thinking_enabled")) {
+        cJSON *node = jnav(json, "thinking.enabled");
+        if (!node || !cJSON_IsTrue(node)) return 0;
+        strncpy(buf, "🧠", blen - 1);
+        buf[blen - 1] = '\0';
+        return 1;
+    }
+    if (!strcmp(name, "exceeds_200k")) {
+        cJSON *node = jnav(json, "exceeds_200k_tokens");
+        if (!node || !cJSON_IsTrue(node)) return 0;
+        strncpy(buf, "⚠️", blen - 1);
+        buf[blen - 1] = '\0';
+        return 1;
+    }
+    if (!strcmp(name, "api_duration")) {
+        if (!jnum(json, "cost.total_api_duration_ms", &v) || v <= 0) return 0;
+        long mins = (long)(v / 60000), secs = (long)(v / 1000) % 60;
+        if (mins > 0) snprintf(buf, blen, "%ldm %lds", mins, secs);
+        else          snprintf(buf, blen, "%lds", secs);
+        return 1;
+    }
+    if (!strcmp(name, "input_tokens")) {
+        if (!jnum(json, "context_window.total_input_tokens", &v)) return 0;
+        snprintf(buf, blen, "%ld", (long)v); return 1;
+    }
+    if (!strcmp(name, "output_tokens")) {
+        if (!jnum(json, "context_window.total_output_tokens", &v)) return 0;
+        snprintf(buf, blen, "%ld", (long)v); return 1;
+    }
+    if (!strcmp(name, "context_size")) {
+        if (!jnum(json, "context_window.context_window_size", &v)) return 0;
+        snprintf(buf, blen, "%ld", (long)v); return 1;
+    }
+    if (!strcmp(name, "input_tokens_current")) {
+        if (!jnum(json, "context_window.current_usage.input_tokens", &v)) return 0;
+        snprintf(buf, blen, "%ld", (long)v); return 1;
+    }
+    if (!strcmp(name, "output_tokens_current")) {
+        if (!jnum(json, "context_window.current_usage.output_tokens", &v)) return 0;
+        snprintf(buf, blen, "%ld", (long)v); return 1;
+    }
+    if (!strcmp(name, "cache_creation_tokens")) {
+        if (!jnum(json, "context_window.current_usage.cache_creation_input_tokens", &v)) return 0;
+        snprintf(buf, blen, "%ld", (long)v); return 1;
+    }
+    if (!strcmp(name, "cache_read_tokens")) {
+        if (!jnum(json, "context_window.current_usage.cache_read_input_tokens", &v)) return 0;
+        snprintf(buf, blen, "%ld", (long)v); return 1;
+    }
+    if (!strcmp(name, "rate_5h_resets_at")) {
+        if (!jnum(json, "rate_limits.five_hour.resets_at", &v)) return 0;
+        time_t t = (time_t)v;
+        struct tm *tm = localtime(&t);
+        strftime(buf, blen, "%Y-%m-%d %H:%M", tm);
+        return buf[0] != '\0';
+    }
+    if (!strcmp(name, "rate_7d_resets_at")) {
+        if (!jnum(json, "rate_limits.seven_day.resets_at", &v)) return 0;
+        time_t t = (time_t)v;
+        struct tm *tm = localtime(&t);
+        strftime(buf, blen, "%Y-%m-%d %H:%M", tm);
         return buf[0] != '\0';
     }
 
@@ -367,27 +440,48 @@ static void print_help(void)
     puts("  Each non-comment line becomes one line of output.");
     puts("  Syntax: free text with $field_name or $field_name,COLOR\n");
     puts("Available fields:");
-    puts("  $current_dir        workspace.current_dir (or cwd), basename only");
-    puts("  $project_dir        workspace.project_dir, basename only");
-    puts("  $git_worktree       workspace.git_worktree");
-    puts("  $model_name         model.display_name  (e.g. \"Opus\")");
-    puts("  $model_id           model.id            (e.g. \"claude-opus-4-6\")");
-    puts("  $session_id         session_id");
-    puts("  $session_name       session_name");
-    puts("  $version            version");
-    puts("  $cost               cost.total_cost_usd            e.g. $0.05");
-    puts("  $duration           cost.total_duration_ms         e.g. 1m 30s");
-    puts("  $lines_added        cost.total_lines_added         e.g. +42");
-    puts("  $lines_removed      cost.total_lines_removed       e.g. -7");
-    puts("  $context_pct        context_window.used_percentage e.g. 34%");
-    puts("  $context_bar        graphical bar + pct            e.g. [████░░░░░░] 34%");
-    puts("  $context_remaining  context_window.remaining_percentage");
-    puts("  $rate_5h            rate_limits.five_hour.used_percentage");
-    puts("  $rate_7d            rate_limits.seven_day.used_percentage");
-    puts("  $vim_mode           vim.mode  (NORMAL / INSERT / VISUAL / REPLACE)");
-    puts("  $agent              agent.name");
-    puts("  $worktree           worktree.name");
-    puts("  $branch             worktree.branch (falls back to git_worktree)");
+    puts("  $current_dir           workspace.current_dir (or cwd), basename only");
+    puts("  $project_dir           workspace.project_dir, basename only");
+    puts("  $git_worktree          workspace.git_worktree");
+    puts("  $model_name            model.display_name  (e.g. \"Opus\")");
+    puts("  $model_id              model.id            (e.g. \"claude-opus-4-6\")");
+    puts("  $session_id            session_id");
+    puts("  $session_name          session_name");
+    puts("  $version               version");
+    puts("  $transcript_path       transcript_path");
+    puts("  $cost                  cost.total_cost_usd            e.g. $0.05");
+    puts("  $duration              cost.total_duration_ms         e.g. 1m 30s");
+    puts("  $api_duration          cost.total_api_duration_ms     e.g. 2s");
+    puts("  $lines_added           cost.total_lines_added         e.g. +42");
+    puts("  $lines_removed         cost.total_lines_removed       e.g. -7");
+    puts("  $context_pct           context_window.used_percentage e.g. 34%");
+    puts("  $context_bar           graphical bar + pct            e.g. [████░░░░░░] 34%");
+    puts("  $context_remaining     context_window.remaining_percentage");
+    puts("  $input_tokens          context_window.total_input_tokens");
+    puts("  $output_tokens         context_window.total_output_tokens");
+    puts("  $context_size          context_window.context_window_size");
+    puts("  $input_tokens_current  context_window.current_usage.input_tokens");
+    puts("  $output_tokens_current context_window.current_usage.output_tokens");
+    puts("  $cache_creation_tokens context_window.current_usage.cache_creation_input_tokens");
+    puts("  $cache_read_tokens     context_window.current_usage.cache_read_input_tokens");
+    puts("  $rate_5h               rate_limits.five_hour.used_percentage");
+    puts("  $rate_7d               rate_limits.seven_day.used_percentage");
+    puts("  $rate_5h_resets_at     rate_limits.five_hour.resets_at     (date/time)");
+    puts("  $rate_7d_resets_at     rate_limits.seven_day.resets_at     (date/time)");
+    puts("  $vim_mode              vim.mode  (NORMAL / INSERT / VISUAL / REPLACE)");
+    puts("  $agent                 agent.name");
+    puts("  $worktree              worktree.name");
+    puts("  $worktree_path         worktree.path");
+    puts("  $worktree_orig_cwd     worktree.original_cwd");
+    puts("  $worktree_orig_branch  worktree.original_branch");
+    puts("  $branch                worktree.branch (falls back to git_worktree)");
+    puts("  $repo_host             workspace.repo.host");
+    puts("  $repo_owner            workspace.repo.owner");
+    puts("  $repo_name             workspace.repo.name");
+    puts("  $output_style          output_style.name");
+    puts("  $effort_level          effort.level  (low/medium/high/xhigh)");
+    puts("  $thinking_enabled      thinking.enabled  (🧠 or empty)");
+    puts("  $exceeds_200k          exceeds_200k_tokens  (⚠️ or empty)");
     puts("\nAvailable colors:");
     printf("  " RESET   "RESET"   RESET "\n");
     printf("  " BOLD    "BOLD"    RESET "\n");
