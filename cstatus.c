@@ -134,26 +134,38 @@ static char *random_metric(cJSON *json, const char *metric) {
         cJSON *node = jnav(json, "exceeds_200k_tokens");
         if (!node || !cJSON_IsTrue(node)) return NULL;
         if (random_double() > 0.5) {
-            strncpy(buf, "⚠️", sizeof buf - 1);
+            snprintf(buf, sizeof buf, "⚠️ 200k");
             return buf;
         }
         return NULL;
     }
 
     /* Percentage metrics (0-100) */
-    if (!strcmp(metric, "context_window.remaining_percentage") ||
-        !strcmp(metric, "context_window.used_percentage") ||
-        !strcmp(metric, "rate_limits.five_hour.used_percentage") ||
-        !strcmp(metric, "rate_limits.seven_day.used_percentage")) {
+    if (!strcmp(metric, "context_window.remaining_percentage")) {
         double pct = random_double() * 100.0;
-        snprintf(buf, sizeof buf, "%.0f%%", pct);
+        snprintf(buf, sizeof buf, "📊 %d%%", (int)pct);
+        return buf;
+    }
+    if (!strcmp(metric, "context_window.used_percentage")) {
+        double pct = random_double() * 100.0;
+        snprintf(buf, sizeof buf, "📈 %d%%", (int)pct);
+        return buf;
+    }
+    if (!strcmp(metric, "rate_limits.five_hour.used_percentage")) {
+        double pct = random_double() * 100.0;
+        snprintf(buf, sizeof buf, "⏱️ 5h: %d%%", (int)pct);
+        return buf;
+    }
+    if (!strcmp(metric, "rate_limits.seven_day.used_percentage")) {
+        double pct = random_double() * 100.0;
+        snprintf(buf, sizeof buf, "📊 7d: %d%%", (int)pct);
         return buf;
     }
 
     /* Cost metric */
     if (!strcmp(metric, "cost.total_cost_usd")) {
         double cost = random_double() * 10.0; /* $0.00 to $10.00 */
-        snprintf(buf, sizeof buf, "$%.2f", cost);
+        snprintf(buf, sizeof buf, "💰 $%.2f", cost);
         return buf;
     }
 
@@ -161,36 +173,55 @@ static char *random_metric(cJSON *json, const char *metric) {
     if (!strcmp(metric, "cost.total_duration_ms")) {
         double dur = random_double() * 300000.0; /* 0 to 5 min */
         long mins = (long)(dur / 60000), secs = (long)(dur / 1000) % 60;
-        if (mins > 0) snprintf(buf, sizeof buf, "%ldm %lds", mins, secs);
-        else          snprintf(buf, sizeof buf, "%lds", secs);
+        if (mins > 0) snprintf(buf, sizeof buf, "⏱️ %ldm %lds", mins, secs);
+        else          snprintf(buf, sizeof buf, "⏱️ %lds", secs);
         return buf;
     }
 
     /* Token count metrics */
-    if (!strcmp(metric, "context_window.total_input_tokens") ||
-        !strcmp(metric, "context_window.total_output_tokens") ||
-        !strcmp(metric, "context_window.context_window_size")) {
+    if (!strcmp(metric, "context_window.total_input_tokens")) {
         double tokens = random_double() * 200000.0;
-        snprintf(buf, sizeof buf, "%ld", (long)tokens);
+        snprintf(buf, sizeof buf, "📥 %ld", (long)tokens);
+        return buf;
+    }
+    if (!strcmp(metric, "context_window.total_output_tokens")) {
+        double tokens = random_double() * 200000.0;
+        snprintf(buf, sizeof buf, "📤 %ld", (long)tokens);
+        return buf;
+    }
+    if (!strcmp(metric, "context_window.context_window_size")) {
+        double tokens = random_double() * 200000.0;
+        snprintf(buf, sizeof buf, "📏 %ld", (long)tokens);
         return buf;
     }
 
     /* Lines metrics */
-    if (!strcmp(metric, "cost.total_lines_added") ||
-        !strcmp(metric, "cost.total_lines_removed")) {
+    if (!strcmp(metric, "cost.total_lines_added")) {
         double lines = random_double() * 500.0;
-        snprintf(buf, sizeof buf, "%+ld", (long)lines);
+        snprintf(buf, sizeof buf, "➕ +%ld", (long)lines);
+        return buf;
+    }
+    if (!strcmp(metric, "cost.total_lines_removed")) {
+        double lines = random_double() * 500.0;
+        snprintf(buf, sizeof buf, "➖ -%ld", (long)lines);
         return buf;
     }
 
     /* Rate limit resets (random future time) */
-    if (!strcmp(metric, "rate_limits.five_hour.resets_at") ||
-        !strcmp(metric, "rate_limits.seven_day.resets_at")) {
+    if (!strcmp(metric, "rate_limits.five_hour.resets_at")) {
         time_t now = time(NULL);
         time_t offset = (time_t)(random_double() * 86400); /* 0 to 24 hours */
         time_t reset = now + offset;
         struct tm *tm = localtime(&reset);
-        strftime(buf, sizeof buf, "%Y-%m-%d %H:%M", tm);
+        strftime(buf, sizeof buf, "⏰ 5h: %m/%d %H:%M", tm);
+        return buf;
+    }
+    if (!strcmp(metric, "rate_limits.seven_day.resets_at")) {
+        time_t now = time(NULL);
+        time_t offset = (time_t)(random_double() * 86400); /* 0 to 24 hours */
+        time_t reset = now + offset;
+        struct tm *tm = localtime(&reset);
+        strftime(buf, sizeof buf, "📅 7d: %m/%d %H:%M", tm);
         return buf;
     }
 
