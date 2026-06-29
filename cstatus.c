@@ -2,10 +2,15 @@
  * Usage: cat status.json | cstatus
  *        streaming-daemon | cstatus        (one JSON object per render)
  * Build: cc -O2 -std=c99 -o cstatus cstatus.c -lcjson
+ *        (version injected via -DVERSION=\"x.y.z\")
  *
  * Template: ~/.claude/statusline.template (or --template <path>)
  *   Each non-comment line becomes one output line.
  *   Syntax: free text with $field_name or $field_name,COLOR  */
+
+#ifndef VERSION
+#define VERSION "dev"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -472,10 +477,15 @@ static void render(cJSON *json)
 /* ── help ─────────────────────────────────────────────────── */
 static void print_help(void)
 {
-    puts("cstatus – Claude Code status line renderer\n");
-    puts("Usage:");
+    puts("cstatus – Claude Code status line renderer v" VERSION);
+    puts("\nUsage:");
     puts("  cat status.json | cstatus [--template <path>]");
-    puts("  streaming-daemon | cstatus [--template <path>]\n");
+    puts("  streaming-daemon | cstatus [--template <path>]");
+    puts("\nOptions:");
+    puts("  --help       show this help message and exit");
+    puts("  --version    show version and exit");
+    puts("  --template   path to template file (default: ~/.claude/statusline.template)");
+    puts("\nTemplate file (default: ~/.claude/statusline.template):");
     puts("Template file (default: ~/.claude/statusline.template):");
     puts("  Lines starting with '#' are comments and are ignored.");
     puts("  Each non-comment line becomes one line of output.");
@@ -543,9 +553,9 @@ static void print_help(void)
 /* ── main ─────────────────────────────────────────────────── */
 int main(int argc, char **argv)
 {
-    if (argc > 1 && strcmp(argv[1], "--help") == 0) {
-        print_help();
-        return 0;
+    if (argc > 1) {
+        if      (strcmp(argv[1], "--help")    == 0) { print_help();    return 0; }
+        else if (strcmp(argv[1], "--version") == 0) { printf("cstatus v%s\n", VERSION); return 0; }
     }
 
     /* resolve template path */
