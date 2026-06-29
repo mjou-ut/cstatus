@@ -3,6 +3,8 @@
 Renders a Claude Code status line from the JSON object emitted by the
 `statusline` hook.
 
+📖 **Official documentation**: https://code.claude.com/docs/en/statusline
+
 ![cstatus simple-3-line-status](simple-3-line-status.png)
 
 ## Setup
