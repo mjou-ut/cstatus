@@ -14,6 +14,10 @@
 #include <time.h>
 #include <cjson/cJSON.h>
 
+/* ── forward declarations ─────────────────────────────────── */
+static cJSON *jnav(cJSON *root, const char *path);
+static char *random_metric(cJSON *json, const char *metric);
+
 /* ── ANSI ─────────────────────────────────────────────────── */
 #define RESET    "\033[0m"
 #define BOLD     "\033[1m"
@@ -29,33 +33,93 @@
 /* ── random output generator ──────────────────────────────── *\n * Generates a random string for the $random field.            *\n * Uses a simple LCG random number generator.                  */
 static unsigned int seed = 0;
 
-static char *random_output(void)
+static void random_seed(void)
 {
-    static const char *emojis[] = {
-        "🚀", "✨", "🔥", "💡", "⚡", "🎯", "🎉", "🌟", "💪", "🎨",
-        "📊", "🔍", "🛠️", "✅", "❌", "⏰", "📝", "💻", "🌈", "🎵",
-        "🦄", "🍕", "☕", "🌙", "☀️", "🌊", "🍀", "🎲", "🏆", "📚",
-    };
-    static const char *phrases[] = {
-        "Working...", "Analyzing", "Building", "Testing", "Deploying",
-        "Optimizing", "Refactoring", "Reviewing", "Coding", "Debugging",
-        "Compiling", "Running", "Scanning", "Parsing", "Formatting",
-        "Checking", "Verifying", "Loading", "Processing", "Fetching",
-    };
-
-    /* Seed once with current time on first call */
     if (seed == 0) {
         seed = (unsigned int)time(NULL);
     }
+}
 
+static double random_double(void)
+{
+    random_seed();
     seed = seed * 1103515245 + 12345;
-    int emoji_idx = (seed / 65536) % 30;
-    seed = seed * 1103515245 + 12345;
-    int phrase_idx = (seed / 65536) % 20;
+    return (double)(seed / 65536) / 65536.0; /* 0.0 to 1.0 */
+}
 
+static char *random_metric(cJSON *json, const char *metric) {
     static char buf[256];
-    snprintf(buf, sizeof buf, "%s %s", emojis[emoji_idx], phrases[phrase_idx]);
-    return buf;
+    buf[0] = '\0';
+    double v = 0;
+
+    random_seed();
+
+    /* Boolean metrics */
+    if (!strcmp(metric, "exceeds_200k_tokens")) {
+        cJSON *node = jnav(json, "exceeds_200k_tokens");
+        if (!node || !cJSON_IsTrue(node)) return NULL;
+        if (random_double() > 0.5) {
+            strncpy(buf, "⚠️", sizeof buf - 1);
+            return buf;
+        }
+        return NULL;
+    }
+
+    /* Percentage metrics (0-100) */
+    if (!strcmp(metric, "context_window.remaining_percentage") ||
+        !strcmp(metric, "context_window.used_percentage") ||
+        !strcmp(metric, "rate_limits.five_hour.used_percentage") ||
+        !strcmp(metric, "rate_limits.seven_day.used_percentage")) {
+        double pct = random_double() * 100.0;
+        snprintf(buf, sizeof buf, "%.0f%%", pct);
+        return buf;
+    }
+
+    /* Cost metric */
+    if (!strcmp(metric, "cost.total_cost_usd")) {
+        double cost = random_double() * 10.0; /* $0.00 to $10.00 */
+        snprintf(buf, sizeof buf, "$%.2f", cost);
+        return buf;
+    }
+
+    /* Duration metric */
+    if (!strcmp(metric, "cost.total_duration_ms")) {
+        double dur = random_double() * 300000.0; /* 0 to 5 min */
+        long mins = (long)(dur / 60000), secs = (long)(dur / 1000) % 60;
+        if (mins > 0) snprintf(buf, sizeof buf, "%ldm %lds", mins, secs);
+        else          snprintf(buf, sizeof buf, "%lds", secs);
+        return buf;
+    }
+
+    /* Token count metrics */
+    if (!strcmp(metric, "context_window.total_input_tokens") ||
+        !strcmp(metric, "context_window.total_output_tokens") ||
+        !strcmp(metric, "context_window.context_window_size")) {
+        double tokens = random_double() * 200000.0;
+        snprintf(buf, sizeof buf, "%ld", (long)tokens);
+        return buf;
+    }
+
+    /* Lines metrics */
+    if (!strcmp(metric, "cost.total_lines_added") ||
+        !strcmp(metric, "cost.total_lines_removed")) {
+        double lines = random_double() * 500.0;
+        snprintf(buf, sizeof buf, "%+ld", (long)lines);
+        return buf;
+    }
+
+    /* Rate limit resets (random future time) */
+    if (!strcmp(metric, "rate_limits.five_hour.resets_at") ||
+        !strcmp(metric, "rate_limits.seven_day.resets_at")) {
+        time_t now = time(NULL);
+        time_t offset = (time_t)(random_double() * 86400); /* 0 to 24 hours */
+        time_t reset = now + offset;
+        struct tm *tm = localtime(&reset);
+        strftime(buf, sizeof buf, "%Y-%m-%d %H:%M", tm);
+        return buf;
+    }
+
+    return NULL;
 }
 
 /* ── read one complete JSON object from stdin ─────────────── */
@@ -159,7 +223,7 @@ static const char *lookup_color(const char *name)
 /* ── template: field resolution ───────────────────────────── *
  * Fills buf with a display-ready string for the named field.  *
  * Returns 1 if the field has a value, 0 if absent/empty.      */
-static int resolve_field(cJSON *json, const char *name, char *buf, size_t blen)
+static int resolve_field(cJSON *json, const char *name, const char *arg, char *buf, size_t blen)
 {
     buf[0] = '\0';
     double v = 0;
@@ -214,7 +278,18 @@ static int resolve_field(cJSON *json, const char *name, char *buf, size_t blen)
         return 1;
     }
     if (!strcmp(name, "random")) {
-        strncpy(buf, random_output(), blen - 1);
+        /* $random[metric] - generate random value for a metric */
+        if (arg[0]) {
+            char *result = random_metric(json, arg);
+            if (result) {
+                strncpy(buf, result, blen - 1);
+                buf[blen - 1] = '\0';
+                return 1;
+            }
+            return 0;
+        }
+        /* $random with no args - simple random indicator */
+        strncpy(buf, random_double() > 0.5 ? "🔄" : "✨", blen - 1);
         buf[blen - 1] = '\0';
         return 1;
     }
@@ -346,6 +421,20 @@ static void render_template_line(const char *fmt, cJSON *json)
         char fname[64] = "";
         if (flen < sizeof fname) { memcpy(fname, fs, flen); fname[flen] = '\0'; }
 
+        /* optional [arg] for fields like $random[metric] */
+        char arg[256] = "";
+        const char *arg_start = NULL;
+        if (*p == '[') {
+            const char *ae = p + 1;
+            while (*ae && *ae != ']') ae++;
+            size_t alen = (size_t)(ae - p - 1);
+            if (alen > 0 && alen < sizeof arg) {
+                memcpy(arg, p + 1, alen);
+                arg[alen] = '\0';
+                p = ae + 1; /* skip past ] */
+            }
+        }
+
         /* optional ,COLOR immediately after the field name */
         const char *color = NULL;
         const char *after = p;
@@ -362,7 +451,7 @@ static void render_template_line(const char *fmt, cJSON *json)
         }
 
         char val[512];
-        if (resolve_field(json, fname, val, sizeof val) && val[0]) {
+        if (resolve_field(json, fname, arg, val, sizeof val) && val[0]) {
             if (color) printf("%s%s" RESET, color, val);
             else       fputs(val, stdout);
         }
